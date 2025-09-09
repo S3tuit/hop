@@ -17,13 +17,17 @@
 
 package org.apache.hop.databases.postgresql;
 
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import org.apache.hop.core.Const;
 import org.apache.hop.core.database.BaseDatabaseMeta;
 import org.apache.hop.core.database.DatabaseMeta;
 import org.apache.hop.core.database.DatabaseMetaPlugin;
 import org.apache.hop.core.database.IDatabase;
+import org.apache.hop.core.exception.HopPluginException;
 import org.apache.hop.core.gui.plugin.GuiPlugin;
 import org.apache.hop.core.row.IValueMeta;
+import org.apache.hop.core.row.value.ValueMetaFactory;
 
 /** Contains PostgreSQL specific information through static final members */
 @DatabaseMetaPlugin(
@@ -1118,5 +1122,26 @@ public class PostgreSqlDatabaseMeta extends BaseDatabaseMeta implements IDatabas
   @Override
   public int getMaxTextFieldLength() {
     return GB_LIMIT;
+  }
+
+  @Override
+  public IValueMeta customizeValueFromSqlType(IValueMeta v, ResultSetMetaData rm, int index)
+      throws SQLException {
+    // PG exposes uuid columns as JDBC Types.OTHER with typeName "uuid"
+    if (rm.getColumnType(index) == java.sql.Types.OTHER
+        && "uuid".equalsIgnoreCase(rm.getColumnTypeName(index))) {
+
+      int uuidType = ValueMetaFactory.getIdForValueMeta("UUID");
+      try {
+        IValueMeta u = ValueMetaFactory.createValueMeta(v.getName(), uuidType);
+        u.setLength(-1);
+        u.setPrecision(-1);
+
+        return u;
+      } catch (HopPluginException e) {
+        // UUID plugin not present
+      }
+    }
+    return null;
   }
 }

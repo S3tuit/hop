@@ -17,15 +17,20 @@
 
 package org.apache.hop.databases.mssqlnative;
 
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hop.core.Const;
 import org.apache.hop.core.database.BaseDatabaseMeta;
 import org.apache.hop.core.database.DatabaseMeta;
 import org.apache.hop.core.database.DatabaseMetaPlugin;
+import org.apache.hop.core.exception.HopPluginException;
 import org.apache.hop.core.gui.plugin.GuiElementType;
 import org.apache.hop.core.gui.plugin.GuiPlugin;
 import org.apache.hop.core.gui.plugin.GuiWidgetElement;
+import org.apache.hop.core.row.IValueMeta;
+import org.apache.hop.core.row.value.ValueMetaFactory;
 import org.apache.hop.core.util.Utils;
 import org.apache.hop.databases.mssql.MsSqlServerDatabaseMeta;
 import org.apache.hop.metadata.api.HopMetadataProperty;
@@ -200,5 +205,26 @@ public class MsSqlServerNativeDatabaseMeta extends MsSqlServerDatabaseMeta
   @Override
   public void addDefaultOptions() {
     addExtraOption(getPluginId(), "encrypt", "false");
+  }
+
+  @Override
+  public IValueMeta customizeValueFromSqlType(IValueMeta v, ResultSetMetaData rm, int index)
+      throws SQLException {
+    // MSSQL reports UNIQUEIDENTIFIER as JDBC CHAR/VARCHAR with typeName "uniqueidentifier"
+    String typeName = rm.getColumnTypeName(index);
+    if (typeName != null && typeName.equalsIgnoreCase("uniqueidentifier")) {
+
+      int uuidType = ValueMetaFactory.getIdForValueMeta("UUID");
+      try {
+        IValueMeta u = ValueMetaFactory.createValueMeta(v.getName(), uuidType);
+        u.setLength(-1);
+        u.setPrecision(-1);
+
+        return u;
+      } catch (HopPluginException e) {
+        // UUID plugin not present
+      }
+    }
+    return null;
   }
 }

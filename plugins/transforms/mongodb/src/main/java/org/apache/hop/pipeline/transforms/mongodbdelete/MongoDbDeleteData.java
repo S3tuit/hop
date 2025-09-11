@@ -17,15 +17,19 @@
 
 package org.apache.hop.pipeline.transforms.mongodbdelete;
 
+import static org.apache.hop.pipeline.transforms.mongodboutput.MongoDbOutputData.uuidToBytesStandard;
+
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import org.apache.hop.core.exception.HopException;
 import org.apache.hop.core.exception.HopValueException;
 import org.apache.hop.core.row.IRowMeta;
 import org.apache.hop.core.row.IValueMeta;
+import org.apache.hop.core.row.value.ValueMetaFactory;
 import org.apache.hop.core.util.StringUtil;
 import org.apache.hop.core.variables.IVariables;
 import org.apache.hop.i18n.BaseMessages;
@@ -35,6 +39,8 @@ import org.apache.hop.mongo.wrapper.collection.MongoCollectionWrapper;
 import org.apache.hop.mongo.wrapper.cursor.MongoCursorWrapper;
 import org.apache.hop.pipeline.transform.BaseTransformData;
 import org.apache.hop.pipeline.transform.ITransformData;
+import org.bson.BsonBinarySubType;
+import org.bson.types.Binary;
 
 /** Data class for the MongoDbDelete step */
 @SuppressWarnings("java:S1104")
@@ -346,6 +352,20 @@ public class MongoDbDeleteData extends BaseTransformData implements ITransformDa
       byte[] val = valueMeta.getBinary(objectValue);
       mongoObject.put(lookup.toString(), val);
       return true;
+    }
+    // UUID
+    try {
+      int uuidTypeId = ValueMetaFactory.getIdForValueMeta("UUID");
+      if (valueMeta.getType() == uuidTypeId) {
+        UUID val = (UUID) valueMeta.convertData(valueMeta, objectValue);
+        // assumes UUID are stored in Mongo as type 4 bson
+        mongoObject.put(
+            lookup.toString(),
+            new Binary(BsonBinarySubType.UUID_STANDARD, uuidToBytesStandard(val)));
+        return true;
+      }
+    } catch (Exception ignore) {
+      // UUID plugin not present, fall through
     }
     if (valueMeta.isSerializableType()) {
       throw new HopValueException(

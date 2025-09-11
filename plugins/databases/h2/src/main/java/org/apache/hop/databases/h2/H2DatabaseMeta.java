@@ -17,13 +17,17 @@
 
 package org.apache.hop.databases.h2;
 
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import org.apache.hop.core.Const;
 import org.apache.hop.core.database.BaseDatabaseMeta;
 import org.apache.hop.core.database.DatabaseMeta;
 import org.apache.hop.core.database.DatabaseMetaPlugin;
 import org.apache.hop.core.database.IDatabase;
+import org.apache.hop.core.exception.HopPluginException;
 import org.apache.hop.core.gui.plugin.GuiPlugin;
 import org.apache.hop.core.row.IValueMeta;
+import org.apache.hop.core.row.value.ValueMetaFactory;
 import org.apache.hop.core.util.Utils;
 
 /** Contains H2 specific information through static final members */
@@ -289,5 +293,26 @@ public class H2DatabaseMeta extends BaseDatabaseMeta implements IDatabase {
   @Override
   public boolean isSupportsPreparedStatementMetadataRetrieval() {
     return false;
+  }
+
+  @Override
+  public IValueMeta customizeValueFromSqlType(IValueMeta v, ResultSetMetaData rm, int index)
+      throws SQLException {
+    // H2 reports UUID with typeName "UUID"
+    String typeName = rm.getColumnTypeName(index);
+    if (typeName != null && typeName.equalsIgnoreCase("UUID")) {
+
+      int uuidType = ValueMetaFactory.getIdForValueMeta("UUID");
+      try {
+        IValueMeta u = ValueMetaFactory.createValueMeta(v.getName(), uuidType);
+        u.setLength(-1);
+        u.setPrecision(-1);
+
+        return u;
+      } catch (HopPluginException e) {
+        // UUID plugin not present
+      }
+    }
+    return null;
   }
 }

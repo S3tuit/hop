@@ -22,18 +22,14 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 import com.mongodb.util.JSON;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hop.core.exception.HopException;
 import org.apache.hop.core.exception.HopValueException;
 import org.apache.hop.core.logging.ILogChannel;
 import org.apache.hop.core.row.IRowMeta;
 import org.apache.hop.core.row.IValueMeta;
+import org.apache.hop.core.row.value.ValueMetaFactory;
 import org.apache.hop.core.util.Utils;
 import org.apache.hop.core.variables.IVariables;
 import org.apache.hop.i18n.BaseMessages;
@@ -44,6 +40,8 @@ import org.apache.hop.mongo.wrapper.collection.MongoCollectionWrapper;
 import org.apache.hop.mongo.wrapper.cursor.MongoCursorWrapper;
 import org.apache.hop.pipeline.transform.BaseTransformData;
 import org.apache.hop.pipeline.transform.ITransformData;
+import org.bson.BsonBinarySubType;
+import org.bson.types.Binary;
 
 /** Data class for the MongoDbOutput transform */
 public class MongoDbOutputData extends BaseTransformData implements ITransformData {
@@ -921,6 +919,20 @@ public class MongoDbOutputData extends BaseTransformData implements ITransformDa
       mongoObject.put(lookup.toString(), val);
       return true;
     }
+    // UUID
+    try {
+      int uuidTypeId = ValueMetaFactory.getIdForValueMeta("UUID");
+      if (hopType.getType() == uuidTypeId) {
+        UUID val = (UUID) hopType.convertData(hopType, hopValue);
+        // stores as native UUID of type 4
+        mongoObject.put(
+            lookup.toString(),
+            new Binary(BsonBinarySubType.UUID_STANDARD, uuidToBytesStandard(val)));
+        return true;
+      }
+    } catch (Exception ignore) {
+      // UUID plugin not present, fall through
+    }
     if (hopType.isSerializableType()) {
       throw new HopValueException(
           BaseMessages.getString(
@@ -928,6 +940,29 @@ public class MongoDbOutputData extends BaseTransformData implements ITransformDa
     }
 
     return false;
+  }
+
+  /**
+   * @param u UUID object to convert
+   * @return the UUID converted in a 16 byte array that matches the standard Mongo subtype 4
+   */
+  public static byte[] uuidToBytesStandard(java.util.UUID u) {
+    long msb = u.getMostSignificantBits();
+    long lsb = u.getLeastSignificantBits();
+    byte[] out = new byte[16];
+
+    // write in big-endian the 8 most significant byte, most-significant byte first
+    for (int i = 7; i >= 0; i--) {
+      out[i] = (byte) (msb & 0xFF);
+      msb >>>= 8;
+    }
+
+    // write in big-endian the 8 least significant byte, most-significant byte first
+    for (int i = 15; i >= 8; i--) {
+      out[i] = (byte) (lsb & 0xFF);
+      lsb >>>= 8;
+    }
+    return out;
   }
 
   private static Object getPathElementName(

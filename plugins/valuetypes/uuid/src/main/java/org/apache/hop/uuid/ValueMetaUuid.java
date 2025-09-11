@@ -173,7 +173,7 @@ public class ValueMetaUuid extends ValueMetaBase {
       boolean addCr) {
     final String col = addFieldName ? getName() + " " : "";
     String def = "VARCHAR(36)";
-    if (iDatabase.isPostgresVariant()) {
+    if (iDatabase.isPostgresVariant() || iDatabase.getPluginId().equalsIgnoreCase("H2")) {
       def = "UUID";
     } else if (iDatabase.isMsSqlServerNativeVariant()) {
       def = "UNIQUEIDENTIFIER";

@@ -220,6 +220,8 @@ public class HopGui
   public static final String ID_MAIN_TOOLBAR_SAVE = "toolbar-10040-save";
   public static final String ID_MAIN_TOOLBAR_SAVE_AS = "toolbar-10050-save-as";
 
+  public static final String ID_STATUS_TOOLBAR = "HopGui-Status-Toolbar";
+
   public static final String GUI_PLUGIN_PERSPECTIVES_PARENT_ID = "HopGui-Perspectives";
 
   public static final String DEFAULT_HOP_GUI_NAMESPACE = "hop-gui";
@@ -254,6 +256,9 @@ public class HopGui
 
   private ToolBar mainToolbar;
   private GuiToolbarWidgets mainToolbarWidgets;
+
+  private ToolBar statusToolbar;
+  private GuiToolbarWidgets statusToolbarWidgets;
 
   private ToolBar perspectivesToolbar;
   private Composite mainPerspectivesComposite;
@@ -417,6 +422,7 @@ public class HopGui
     shell.setText(BaseMessages.getString(PKG, "HopGui.Application.Name"));
     addMainMenu();
     addMainToolbar();
+    addStatusToolbar();
     addPerspectivesToolbar();
     addMainPerspectivesComposite();
 
@@ -582,7 +588,6 @@ public class HopGui
             Const.NVL(
                 TranslateUtil.translate(perspectivePlugin.getName(), perspectiveClass),
                 perspective.getId());
-        Listener listener = event -> setActivePerspective(perspective);
         ClassLoader classLoader = pluginRegistry.getClassLoader(perspectivePlugin);
 
         ToolItem item;
@@ -593,11 +598,20 @@ public class HopGui
                   this.perspectivesToolbar,
                   perspectivePlugin.getImageFile(),
                   tooltip,
-                  listener);
+                  // TODO: check if there is unnecessary refresh
+                  event -> setActivePerspective(perspective));
         } else {
           item = new ToolItem(this.perspectivesToolbar, SWT.RADIO);
           item.setToolTipText(tooltip);
-          item.addListener(SWT.Selection, listener);
+          item.addListener(
+              SWT.Selection,
+              event -> {
+                // Event is sent first to the unselected tool item and then the selected item.
+                // To avoid unnecessary refresh, only activate perspective on the selected item.
+                if (item.getSelection()) {
+                  setActivePerspective(perspective);
+                }
+              });
           Image image =
               GuiResource.getInstance()
                   .getImage(
@@ -1241,7 +1255,7 @@ public class HopGui
   }
 
   protected void addMainToolbar() {
-    mainToolbar = new ToolBar(shell, SWT.WRAP | SWT.LEFT | SWT.HORIZONTAL);
+    mainToolbar = new ToolBar(shell, SWT.WRAP | SWT.RIGHT | SWT.HORIZONTAL);
     FormData fdToolBar = new FormData();
     fdToolBar.left = new FormAttachment(0, 0);
     fdToolBar.top = new FormAttachment(0, 0);
@@ -1255,6 +1269,21 @@ public class HopGui
     mainToolbar.pack();
   }
 
+  protected void addStatusToolbar() {
+    statusToolbar = new ToolBar(shell, SWT.WRAP | SWT.RIGHT | SWT.HORIZONTAL);
+    FormData fdToolBar = new FormData();
+    fdToolBar.left = new FormAttachment(0, 0);
+    fdToolBar.right = new FormAttachment(100, 0);
+    fdToolBar.bottom = new FormAttachment(100, 0);
+    statusToolbar.setLayoutData(fdToolBar);
+    PropsUi.setLook(statusToolbar, Props.WIDGET_STYLE_TOOLBAR);
+
+    statusToolbarWidgets = new GuiToolbarWidgets();
+    statusToolbarWidgets.registerGuiPluginObject(this);
+    statusToolbarWidgets.createToolbarWidgets(statusToolbar, ID_STATUS_TOOLBAR);
+    statusToolbar.pack();
+  }
+
   protected void addPerspectivesToolbar() {
     // We can't mix horizontal and vertical toolbars so we need to add a composite.
     //
@@ -1265,7 +1294,7 @@ public class HopGui
     formData.left = new FormAttachment(0, 0);
     formData.right = new FormAttachment(100, 0);
     formData.top = new FormAttachment(mainToolbar, 0);
-    formData.bottom = new FormAttachment(100, 0);
+    formData.bottom = new FormAttachment(statusToolbar, 0);
     mainHopGuiComposite.setLayoutData(formData);
 
     perspectivesToolbar = new ToolBar(mainHopGuiComposite, SWT.WRAP | SWT.RIGHT | SWT.VERTICAL);
